@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Santa Scene + Cel Shader + Snow</title>
+  <style>
+    body { margin:0; overflow:hidden; }
+    button { position:absolute; top:20px; left:20px; z-index:10; }
+  </style>
+</head>
+<body>
+
+<button id="snowBtn">Start Snow</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(10,10,15);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+// Light
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5,10,5);
+scene.add(light);
+
+// Ground
+const textureLoader = new THREE.TextureLoader();
+const groundTex = textureLoader.load("https://raw.githubusercontent.com/sirikanyaaa/3dport/main/s.jpg");
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20,20),
+  new THREE.MeshStandardMaterial({map:groundTex})
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// EnvMap
+const envMap = new THREE.CubeTextureLoader().load([
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/px.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/nx.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/py.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/ny.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/pz.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/cube/skybox/nz.jpg'
+]);
+scene.background = envMap;
+
+const loader = new THREE.GLTFLoader();
+
+// โหลดตึก
+loader.load('https://sirikanyaaa.github.io/3dport/citycity.glb', gltf => {
+  const model = gltf.scene;
+  model.scale.set(1,1,1);
+  scene.add(model);
+});
+
+// santa
+loader.load('https://sirikanyaaa.github.io/3dport/santaboy.glb', gltf => { 
+  const tree = gltf.scene;
+  tree.scale.set(0.5, 0.5, 0.5);        // ปรับสเกล
+  tree.position.set(2.5, 0, -2);          // ปรับตำแหน่ง X,Y,Z
+  scene.add(tree); 
+
+  // ใส่ Cel Shader
+  santa.traverse(node => {
+    if(node.isMesh){
+      const originalMat = node.material;
+      node.material = originalMat.clone(); // clone material
+      node.material.onBeforeCompile = shader => {
+        // vertex shader
+        shader.vertexShader = `
+          varying vec3 vNormal;
+          ${shader.vertexShader.replace(
+            `#include <begin_vertex>`,
+            `#include <begin_vertex>
+            vNormal = normalMatrix * normal;
+            `
+          )}
+        `;
+        // fragment shader
+        shader.fragmentShader = `
+          uniform vec3 uLightDir;
+          varying vec3 vNormal;
+          ${shader.fragmentShader.replace(
+            `#include <dithering_fragment>`,
+            `
+            float light = dot(normalize(vNormal), normalize(uLightDir));
+            float intensity;
+            if(light > 0.95) intensity = 1.0;
+            else if(light > 0.5) intensity = 0.7;
+            else if(light > 0.25) intensity = 0.4;
+            else intensity = 0.1;
+            gl_FragColor.rgb *= intensity;
+            #include <dithering_fragment>
+            `
+          )}
+        `;
+        shader.uniforms.uLightDir = { value: new THREE.Vector3(1,1,1) }; // แสงจากมุมบนซ้าย
+      };
+    }
+  });
+
+  scene.add(santa); // เพิ่ม Santa ลงฉาก
+});
+
+
+// ต้นไม้
+loader.load('https://sirikanyaaa.github.io/3dport/tree.glb', gltf => { 
+  const tree = gltf.scene;
+  tree.scale.set(2.5, 2.5, 2.5);        // ปรับสเกล
+  tree.position.set(-1, -5, 0);          // ปรับตำแหน่ง X,Y,Z
+  scene.add(tree); 
+});
+
+// ป้าย
+loader.load('https://sirikanyaaa.github.io/3dport/word2.glb', gltf => { 
+  const sign = gltf.scene;
+  sign.scale.set(1.2, 1.2, 1.2);       // ปรับสเกล
+  sign.position.set(-5, 1.5, 6);          // ปรับตำแหน่ง X,Y,Z
+  scene.add(sign); 
+ 
+});
+
+// ชื่อ
+loader.load('https://sirikanyaaa.github.io/3dport/myname.glb', gltf => { 
+  const sign = gltf.scene;
+  sign.scale.set(1.2, 1.2, 1.2);       // ปรับสเกล
+  sign.position.set(-3, 15, 4);          // ปรับตำแหน่ง X,Y,Z
+  scene.add(sign); 
+ 
+});
+
+
+
+const textureLoader2 = new THREE.TextureLoader();
+textureLoader2.load('https://raw.githubusercontent.com/sirikanyaaa/final/main/IMG_3632.JPG', function(texture) {
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const material = new THREE.MeshBasicMaterial({ map: texture });
+    const plane = new THREE.Mesh(geometry, material);
+    plane.position.set(1, 18, 0);
+    scene.add(plane);
+});
+
+
+// Snow
+const snowCount = 2000;
+const snowGeo = new THREE.BufferGeometry();
+const pos = new Float32Array(snowCount*3);
+const initialY = new Float32Array(snowCount);
+for(let i=0;i<snowCount;i++){
+  pos[i*3] = (Math.random()-0.5)*50;
+  pos[i*3+1] = Math.random()*20 + 5;
+  pos[i*3+2] = (Math.random()-0.5)*50;
+  initialY[i] = pos[i*3+1];
+}
+snowGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+snowGeo.setAttribute('initialY', new THREE.BufferAttribute(initialY,1));
+
+const snowMat = new THREE.ShaderMaterial({
+  uniforms:{ uTime:{value:0}, uFall:{value:0} },
+  vertexShader: `
+    uniform float uTime;
+    uniform float uFall;
+    attribute float initialY;
+    void main(){
+      vec3 pos = position;
+      if(uFall>0.5){
+        pos.y = initialY - mod(uTime*5.0 + pos.x*0.1 + pos.z*0.1,25.0);
+      }
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
+      gl_PointSize = 2.0;
+    }
+  `,
+  fragmentShader:`void main(){ gl_FragColor = vec4(1.0); }`,
+  transparent:true
+});
+
+const snow = new THREE.Points(snowGeo, snowMat);
+scene.add(snow);
+
+// Snow button
+let snowFall = false;
+document.getElementById('snowBtn').addEventListener('click', ()=>{
+  snowFall = !snowFall;
+  document.getElementById('snowBtn').textContent = snowFall ? "Stop Snow" : "Start Snow";
+});
+
+// Animate Loop
+function animate(time){
+  requestAnimationFrame(animate);
+  snowMat.uniforms.uTime.value = time*0.001;
+  snowMat.uniforms.uFall.value = snowFall ? 1.0 : 0.0;
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+
+</body>
+</html>
